@@ -1,5 +1,5 @@
-// src/services/userDatabase.ts - SECURE VERSION FOR PRODUCTION
-import Database from "bun:sqlite";
+// src/services/userDatabase.ts - MIGRATED TO NODE.JS with better-sqlite3
+import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "fs";
 import { dirname } from "path";
 import { hash, verify } from "argon2";
@@ -26,7 +26,7 @@ export interface UserSession {
 export interface UserSMTPConfig {
   id: string;
   user_id: string;
-  name: string; // Config name (e.g., "Gmail Account", "Work Email")
+  name: string;
   host: string;
   port: number;
   secure: boolean;
@@ -40,7 +40,7 @@ export interface UserSMTPConfig {
 }
 
 class UserDatabase {
-  private db: Database;
+  private db: Database.Database;
   private sessionSecret: string;
 
   constructor() {
@@ -54,10 +54,9 @@ class UserDatabase {
 
     this.db = new Database(dbPath);
     this.initDatabase();
-    
-    // Initialize session secret
+
     this.sessionSecret = process.env.SESSION_SECRET || this.generateFallbackSecret();
-    
+
     if (!process.env.SESSION_SECRET) {
       console.warn("⚠️  No SESSION_SECRET found in .env file");
       console.warn("🔧 For production security, add SESSION_SECRET to your .env:");
@@ -69,7 +68,6 @@ class UserDatabase {
   }
 
   private generateFallbackSecret(): string {
-    // Generate a temporary secret if none provided
     const fallbackSecret = randomBytes(64).toString('hex');
     console.warn("⚠️  Generated temporary session secret - sessions will be invalidated on restart");
     return fallbackSecret;
@@ -132,58 +130,45 @@ class UserDatabase {
       `CREATE INDEX IF NOT EXISTS idx_smtp_configs_user_id ON user_smtp_configs(user_id)`
     );
 
-    console.log("✅ User database initialized with enhanced security");
+    console.log("✅ User database initialized with better-sqlite3");
   }
 
-  // SECURE: Generate cryptographically secure signed tokens
   private generateSecureToken(userId: string): string {
     try {
-      // Generate cryptographically secure random bytes (32 bytes = 64 hex chars)
       const randomPart = randomBytes(32).toString('hex');
       const timestamp = Date.now().toString();
-      
-      // Create payload to sign
       const payload = `${userId}:${timestamp}:${randomPart}`;
-      
-      // Sign payload with HMAC-SHA256 using secret
       const signature = createHmac('sha256', this.sessionSecret)
         .update(payload)
         .digest('hex');
-      
-      // Return signed token: payload:signature
+
       return `${payload}:${signature}`;
     } catch (error) {
       console.error("❌ Error generating secure token:", error);
-      // Fallback to old method if crypto fails
       return `${userId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     }
   }
 
-  // SECURE: Verify token signature and extract data
   private verifyToken(token: string): { userId: string; timestamp: number } | null {
     try {
-      // Check if this is a new signed token or old format
       const parts = token.split(':');
-      
+
       if (parts.length === 4) {
-        // New signed token format: userId:timestamp:random:signature
         const [userId, timestamp, randomPart, signature] = parts;
         const payload = `${userId}:${timestamp}:${randomPart}`;
-        
-        // Verify signature
+
         const expectedSignature = createHmac('sha256', this.sessionSecret)
           .update(payload)
           .digest('hex');
-        
+
         if (signature !== expectedSignature) {
           console.warn("🚨 Invalid token signature detected for user:", userId);
           return null;
         }
-        
+
         return { userId, timestamp: parseInt(timestamp) };
-        
+
       } else if (parts.length === 1 && token.includes('_')) {
-        // Old token format: userId_timestamp_random (for backward compatibility)
         const oldParts = token.split('_');
         if (oldParts.length >= 3) {
           const userId = oldParts[0];
@@ -192,7 +177,7 @@ class UserDatabase {
           return { userId, timestamp };
         }
       }
-      
+
       return null;
     } catch (error) {
       console.error("❌ Token verification error:", error);
@@ -200,7 +185,6 @@ class UserDatabase {
     }
   }
 
-  // User management methods (unchanged)
   async createUser(
     email: string,
     name: string,
@@ -210,14 +194,11 @@ class UserDatabase {
     const passwordHash = await hash(password);
 
     try {
-      this.db
-        .prepare(
-          `
+      const stmt = this.db.prepare(`
         INSERT INTO users (id, email, name, password_hash)
         VALUES (?, ?, ?, ?)
-      `
-        )
-        .run(userId, email.toLowerCase(), name, passwordHash);
+      `);
+      stmt.run(userId, email.toLowerCase(), name, passwordHash);
 
       console.log(`👤 User created: ${email}`);
       return userId;
@@ -236,13 +217,10 @@ class UserDatabase {
     email: string,
     password: string
   ): Promise<User | null> {
-    const user = this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       SELECT * FROM users WHERE email = ? AND is_active = 1
-    `
-      )
-      .get(email.toLowerCase()) as User | undefined;
+    `);
+    const user = stmt.get(email.toLowerCase()) as User | undefined;
 
     if (!user) {
       return null;
@@ -254,73 +232,54 @@ class UserDatabase {
     }
 
     // Update last login
-    this.db
-      .prepare(
-        `
+    const updateStmt = this.db.prepare(`
       UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?
-    `
-      )
-      .run(user.id);
+    `);
+    updateStmt.run(user.id);
 
     return user;
   }
 
   getUserById(userId: string): User | null {
-    return this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       SELECT * FROM users WHERE id = ? AND is_active = 1
-    `
-      )
-      .get(userId) as User | null;
+    `);
+    return stmt.get(userId) as User | null;
   }
 
-  // SECURE: Session management with signed tokens
   async createSession(userId: string): Promise<string> {
     const sessionId = `sess_${Date.now()}`;
-    const token = this.generateSecureToken(userId);  // SECURE TOKEN GENERATION
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+    const token = this.generateSecureToken(userId);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // Clean old sessions for this user
-    this.db
-      .prepare(
-        `
+    const cleanStmt = this.db.prepare(`
       DELETE FROM user_sessions WHERE user_id = ? AND expires_at < CURRENT_TIMESTAMP
-    `
-      )
-      .run(userId);
+    `);
+    cleanStmt.run(userId);
 
-    this.db
-      .prepare(
-        `
+    const insertStmt = this.db.prepare(`
       INSERT INTO user_sessions (id, user_id, token, expires_at)
       VALUES (?, ?, ?, ?)
-    `
-      )
-      .run(sessionId, userId, token, expiresAt);
+    `);
+    insertStmt.run(sessionId, userId, token, expiresAt);
 
     return token;
   }
 
-  // SECURE: Validate session with signature verification
   validateSession(token: string): User | null {
     try {
-      // First verify token signature (for new tokens) or format (for old tokens)
       const tokenData = this.verifyToken(token);
       if (!tokenData) {
         return null;
       }
 
-      // Then check database
-      const session = this.db
-        .prepare(
-          `
+      const stmt = this.db.prepare(`
         SELECT s.*, u.* FROM user_sessions s
         JOIN users u ON s.user_id = u.id
         WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP AND u.is_active = 1
-      `
-        )
-        .get(token) as any;
+      `);
+      const session = stmt.get(token) as any;
 
       if (!session) {
         return null;
@@ -342,73 +301,60 @@ class UserDatabase {
   }
 
   deleteSession(token: string): void {
-    this.db.prepare(`DELETE FROM user_sessions WHERE token = ?`).run(token);
+    const stmt = this.db.prepare(`DELETE FROM user_sessions WHERE token = ?`);
+    stmt.run(token);
   }
 
-  // SMTP Config management per user (unchanged)
   async createSMTPConfig(
     userId: string,
     config: Omit<UserSMTPConfig, "id" | "user_id" | "created_at" | "updated_at">
   ): Promise<string> {
     const configId = `smtp_${Date.now()}`;
 
-    // If this is set as default, unset other defaults for this user
     if (config.is_default) {
-      this.db
-        .prepare(
-          `
+      const resetStmt = this.db.prepare(`
         UPDATE user_smtp_configs SET is_default = 0 WHERE user_id = ?
-      `
-        )
-        .run(userId);
+      `);
+      resetStmt.run(userId);
     }
 
-    this.db
-      .prepare(
-        `
+    const insertStmt = this.db.prepare(`
       INSERT INTO user_smtp_configs 
       (id, user_id, name, host, port, secure, user, pass, from_email, from_name, is_default)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `
-      )
-      .run(
-        configId,
-        userId,
-        config.name,
-        config.host,
-        config.port,
-        config.secure ? 1 : 0,
-        config.user,
-        config.pass,
-        config.from_email,
-        config.from_name || "",
-        config.is_default ? 1 : 0
-      );
+    `);
+    insertStmt.run(
+      configId,
+      userId,
+      config.name,
+      config.host,
+      config.port,
+      config.secure ? 1 : 0,
+      config.user,
+      config.pass,
+      config.from_email,
+      config.from_name || "",
+      config.is_default ? 1 : 0
+    );
 
     return configId;
   }
 
   getUserSMTPConfigs(userId: string): UserSMTPConfig[] {
-    return this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       SELECT * FROM user_smtp_configs 
       WHERE user_id = ? 
       ORDER BY is_default DESC, created_at DESC
-    `
-      )
-      .all(userId) as UserSMTPConfig[];
+    `);
+    return stmt.all(userId) as UserSMTPConfig[];
   }
 
   getUserDefaultSMTPConfig(userId: string): UserSMTPConfig | null {
-    return this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       SELECT * FROM user_smtp_configs 
       WHERE user_id = ? AND is_default = 1
-    `
-      )
-      .get(userId) as UserSMTPConfig | null;
+    `);
+    return stmt.get(userId) as UserSMTPConfig | null;
   }
 
   updateSMTPConfig(
@@ -435,15 +381,11 @@ class UserDatabase {
       return false;
     }
 
-    // If setting as default, unset other defaults first
     if (updates.is_default) {
-      this.db
-        .prepare(
-          `
+      const resetStmt = this.db.prepare(`
         UPDATE user_smtp_configs SET is_default = 0 WHERE user_id = ? AND id != ?
-      `
-        )
-        .run(userId, configId);
+      `);
+      resetStmt.run(userId, configId);
     }
 
     const setClause = updateFields.map((field) => `${field} = ?`).join(", ");
@@ -454,62 +396,45 @@ class UserDatabase {
       return updates[field as keyof UserSMTPConfig];
     });
 
-    const result = this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       UPDATE user_smtp_configs 
       SET ${setClause}, updated_at = CURRENT_TIMESTAMP 
       WHERE id = ? AND user_id = ?
-    `
-      )
-      .run(...values, configId, userId);
+    `);
+    const result = stmt.run(...values, configId, userId);
 
     return result.changes > 0;
   }
 
   deleteSMTPConfig(configId: string, userId: string): boolean {
-    const result = this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       DELETE FROM user_smtp_configs WHERE id = ? AND user_id = ?
-    `
-      )
-      .run(configId, userId);
+    `);
+    const result = stmt.run(configId, userId);
 
     return result.changes > 0;
   }
 
-  // Clean expired sessions
   cleanExpiredSessions(): void {
-    const result = this.db
-      .prepare(
-        `
+    const stmt = this.db.prepare(`
       DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP
-    `
-      )
-      .run();
+    `);
+    const result = stmt.run();
 
     if (result.changes > 0) {
       console.log(`🧹 Cleaned ${result.changes} expired sessions`);
     }
   }
 
-  // SECURE: Method to upgrade old tokens to new format (optional)
   async upgradeUserTokens(userId: string): Promise<void> {
     try {
-      // Get all sessions for user with old token format
-      const oldSessions = this.db
-        .prepare(`SELECT * FROM user_sessions WHERE user_id = ? AND token LIKE '%_%_%'`)
-        .all(userId) as UserSession[];
+      const stmt = this.db.prepare(`SELECT * FROM user_sessions WHERE user_id = ? AND token LIKE '%_%_%'`);
+      const oldSessions = stmt.all(userId) as UserSession[];
 
       for (const session of oldSessions) {
-        // Generate new secure token
         const newToken = this.generateSecureToken(userId);
-        
-        // Update session with new token
-        this.db
-          .prepare(`UPDATE user_sessions SET token = ? WHERE id = ?`)
-          .run(newToken, session.id);
+        const updateStmt = this.db.prepare(`UPDATE user_sessions SET token = ? WHERE id = ?`);
+        updateStmt.run(newToken, session.id);
       }
 
       if (oldSessions.length > 0) {
@@ -527,3 +452,4 @@ export const userDatabase = new UserDatabase();
 setInterval(() => {
   userDatabase.cleanExpiredSessions();
 }, 60 * 60 * 1000);
+

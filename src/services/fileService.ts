@@ -6,13 +6,15 @@ import type { Contact } from "../types";
 export class FileService {
   static async parseExcelFile(filePath: string): Promise<Contact[]> {
     try {
-      console.log(`Parsing Excel file: ${filePath}`);
+      console.log(`Parsing file: ${filePath}`);
 
       if (!existsSync(filePath)) {
         throw new Error("File does not exist");
       }
 
-      const workbook = XLSX.readFile(filePath);
+      // Read file as buffer and use XLSX.read for ESM compatibility
+      const fileBuffer = await readFile(filePath);
+      const workbook = XLSX.read(fileBuffer, { type: "buffer" });
       const sheetName = workbook.SheetNames[0];
 
       if (!sheetName) {

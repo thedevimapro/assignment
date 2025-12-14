@@ -1,14 +1,14 @@
-// src/services/batchService.ts - COMPLETE FIX WITH NOTIFICATION SUPPORT
-import { emailService } from "./emailService";
-import { logService } from "./logService";
-import { FileService } from "./fileService";
+// src/services/batchService.ts - MIGRATED TO NODE.JS
+import { emailService } from "./emailService.js";
+import { logService } from "./logService.js";
+import { FileService } from "./fileService.js";
 import type {
   BatchJob,
   BatchConfig,
   EmailJob,
   Contact,
   BatchStatus,
-} from "../types";
+} from "../types.js";
 
 class BatchService {
   private currentJob: BatchJob | null = null;
@@ -17,14 +17,13 @@ class BatchService {
   private totalJobs = 0;
   private completedJobs = 0;
 
-  // UPDATED: Accept notification settings parameter
   async startBatchJob(
     emailJob: EmailJob,
     batchConfig: BatchConfig,
-    notificationSettings?: { 
-      email: string; 
-      userId: string; 
-      configName?: string; 
+    notificationSettings?: {
+      email: string;
+      userId: string;
+      configName?: string;
     }
   ): Promise<string> {
     if (this.isRunning) {
@@ -36,7 +35,6 @@ class BatchService {
       emailJob.contacts.length / batchConfig.batchSize
     );
 
-    // Create batch job with notification settings
     this.currentJob = {
       id: jobId,
       totalContacts: emailJob.contacts.length,
@@ -48,9 +46,9 @@ class BatchService {
       startTime: new Date().toISOString(),
       config: batchConfig,
       emailJob,
-      notificationSettings,                    // NEW
-      userId: notificationSettings?.userId,    // NEW  
-      configName: notificationSettings?.configName // NEW
+      notificationSettings,
+      userId: notificationSettings?.userId,
+      configName: notificationSettings?.configName
     };
 
     this.isRunning = true;
@@ -64,10 +62,7 @@ class BatchService {
       `   ⏱️ ${batchConfig.emailDelay}s between emails, ${batchConfig.batchDelay}min between batches`
     );
 
-    // Configure email service
     emailService.createTransport(emailJob.config);
-
-    // Start processing first batch
     this.processNextBatch();
 
     return jobId;
@@ -93,8 +88,6 @@ class BatchService {
       this.isRunning = true;
 
       console.log(`▶️ Batch job ${this.currentJob.id} resumed`);
-
-      // Continue processing
       this.processNextBatch();
     }
   }
@@ -133,13 +126,11 @@ class BatchService {
     const { contacts } = job.emailJob;
     const { batchSize } = job.config;
 
-    // Check if we've processed all batches
     if (job.currentBatch >= job.totalBatches) {
       await this.completeBatchJob();
       return;
     }
 
-    // Get contacts for current batch
     const startIndex = job.currentBatch * batchSize;
     const endIndex = Math.min(startIndex + batchSize, contacts.length);
     const batchContacts = contacts.slice(startIndex, endIndex);
@@ -151,10 +142,8 @@ class BatchService {
     );
 
     try {
-      // Process current batch
       await this.processBatch(batchContacts, job);
 
-      // Schedule next batch if there are more
       if (job.currentBatch < job.totalBatches && this.isRunning) {
         await this.scheduleNextBatch(job);
       } else {
@@ -176,13 +165,12 @@ class BatchService {
 
     for (let i = 0; i < contacts.length; i++) {
       if (!this.isRunning) {
-        break; // Stop if paused or cancelled
+        break;
       }
 
       const contact = contacts[i];
 
       try {
-        // Replace placeholders in HTML content
         const personalizedContent = FileService.replacePlaceholders(
           emailJob.htmlContent,
           contact
@@ -238,7 +226,6 @@ class BatchService {
         );
       }
 
-      // Add delay between emails if not the last email in batch
       if (i < contacts.length - 1 && this.isRunning) {
         const delay = config.emailDelay * 1000;
         console.log(`⏱️ Waiting ${config.emailDelay}s before next email...`);
@@ -248,7 +235,7 @@ class BatchService {
   }
 
   private async scheduleNextBatch(job: BatchJob): Promise<void> {
-    const delayMs = job.config.batchDelay * 60 * 1000; // Convert minutes to milliseconds
+    const delayMs = job.config.batchDelay * 60 * 1000;
     const nextBatchTime = new Date(Date.now() + delayMs);
 
     job.nextBatchTime = nextBatchTime.toISOString();
@@ -266,7 +253,6 @@ class BatchService {
     }, delayMs);
   }
 
-  // UPDATED: Include notification support
   private async completeBatchJob(): Promise<void> {
     if (this.currentJob) {
       this.currentJob.status = "Completed";
@@ -279,31 +265,27 @@ class BatchService {
         `📊 Results: ${this.currentJob.emailsSent} sent, ${this.currentJob.emailsFailed} failed`
       );
 
-      // NEW: Send completion notification if requested
       if (this.currentJob.notificationSettings?.email) {
         await this.sendBatchCompletionNotification();
       }
 
-      // Clean up
       if (this.timeoutId) {
         clearTimeout(this.timeoutId);
         this.timeoutId = null;
       }
 
-      // Clear current job after a delay
       setTimeout(() => {
         this.currentJob = null;
-      }, 30000); // Keep job info for 30 seconds
+      }, 30000);
     }
   }
 
-  // NEW: Send batch completion notification
   private async sendBatchCompletionNotification(): Promise<void> {
     if (!this.currentJob?.notificationSettings?.email) return;
-    
+
     try {
-      const { notificationService } = await import('./notificationService');
-      
+      const { notificationService } = await import('./notificationService.js');
+
       const jobStats = {
         sent: this.currentJob.emailsSent,
         failed: this.currentJob.emailsFailed,
@@ -329,7 +311,7 @@ class BatchService {
         jobDetails,
         jobDetails.configUsed
       );
-      
+
       if (success) {
         console.log('✅ Batch completion notification sent successfully');
       } else {
@@ -342,3 +324,4 @@ class BatchService {
 }
 
 export const batchService = new BatchService();
+

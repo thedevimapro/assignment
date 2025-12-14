@@ -1,12 +1,12 @@
-// src/routes/auth.ts
+// src/routes/auth.ts - MIGRATED TO NODE.JS
 import { Hono } from "hono";
-import { userDatabase } from "../services/userDatabase";
+import { userDatabase } from "../services/userDatabase.js";
 import { setCookie, deleteCookie } from "hono/cookie";
 
 const app = new Hono();
 
 // Register endpoint
-app.post("/auth/register", async (c) => {
+app.post("/register", async (c) => {
   try {
     const body = await c.req.json();
     const { email, name, password } = body;
@@ -55,7 +55,7 @@ app.post("/auth/register", async (c) => {
 
       setCookie(c, "session_token", token, {
         httpOnly: true,
-        secure: isHTTPS, // Only secure if actually on HTTPS
+        secure: isHTTPS,
         sameSite: "lax",
         maxAge: 24 * 60 * 60,
         path: "/",
@@ -91,7 +91,7 @@ app.post("/auth/register", async (c) => {
 });
 
 // Login endpoint
-app.post("/auth/login", async (c) => {
+app.post("/login", async (c) => {
   try {
     const body = await c.req.json();
     const { email, password } = body;
@@ -126,7 +126,7 @@ app.post("/auth/login", async (c) => {
 
     setCookie(c, "session_token", token, {
       httpOnly: true,
-      secure: isHTTPS, // Only secure if actually on HTTPS
+      secure: isHTTPS,
       sameSite: "lax",
       maxAge: 24 * 60 * 60,
       path: "/",
@@ -154,9 +154,10 @@ app.post("/auth/login", async (c) => {
 });
 
 // Logout endpoint
-app.post("/auth/logout", async (c) => {
+app.post("/logout", async (c) => {
   try {
-    const token = c.req.cookie("session_token");
+    const { getCookie } = await import("hono/cookie");
+    const token = getCookie(c, "session_token");
 
     if (token) {
       userDatabase.deleteSession(token);
@@ -181,9 +182,10 @@ app.post("/auth/logout", async (c) => {
 });
 
 // Check auth status
-app.get("/auth/me", async (c) => {
+app.get("/me", async (c) => {
   try {
-    const token = c.req.cookie("session_token");
+    const { getCookie } = await import("hono/cookie");
+    const token = getCookie(c, "session_token");
 
     if (!token) {
       return c.json(
@@ -228,3 +230,4 @@ app.get("/auth/me", async (c) => {
 });
 
 export default app;
+

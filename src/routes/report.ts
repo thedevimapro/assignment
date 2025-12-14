@@ -1,5 +1,6 @@
+// src/routes/report.ts - MIGRATED TO NODE.JS
 import { Hono } from "hono";
-import { logService } from "../services/logService";
+import { logService } from "../services/logService.js";
 
 const app = new Hono();
 
@@ -44,3 +45,4 @@ app.delete("/report/clear", (c) => {
 });
 
 export default app;
+

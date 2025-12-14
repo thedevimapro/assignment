@@ -1,41 +1,62 @@
 documentation:
-  - '**/*.md'
-  - 'docs/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
 
 dependencies:
-  - 'package.json'
-  - 'package-lock.json'
-  - 'bun.lock'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'
+          - 'bun.lock'
 
 frontend:
-  - 'public/**/*'
-  - '**/*.html'
-  - '**/*.css'
-  - 'public/js/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'frontend/**/*'
+          - 'public/**/*'
+          - '**/*.html'
+          - '**/*.css'
+          - '**/*.svelte'
 
 backend:
-  - 'src/**/*.ts'
-  - 'index.ts'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**/*.ts'
+          - 'index.ts'
 
 services:
-  - 'src/services/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/services/**/*'
 
 routes:
-  - 'src/routes/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/routes/**/*'
 
 middleware:
-  - 'src/middleware/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/middleware/**/*'
 
 config:
-  - 'tsconfig.json'
-  - '.env.example'
-  - '*.config.js'
-  - '*.config.ts'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tsconfig.json'
+          - '.env.example'
+          - '*.config.js'
+          - '*.config.ts'
 
 tests:
-  - '**/*.test.ts'
-  - '**/*.spec.ts'
-  - 'tests/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.test.ts'
+          - '**/*.spec.ts'
+          - 'tests/**/*'
 
 ci-cd:
-  - '.github/**/*'
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**/*'
