@@ -1,6 +1,7 @@
-// src/middleware/auth.ts
+// src/middleware/auth.ts - MIGRATED TO NODE.JS
 import { Context, Next } from "hono";
-import { userDatabase, User } from "../services/userDatabase";
+import { getCookie } from "hono/cookie";
+import { userDatabase, User } from "../services/userDatabase.js";
 
 // Extend Context type to include user
 declare module "hono" {
@@ -10,25 +11,20 @@ declare module "hono" {
 }
 
 export async function authMiddleware(c: Context, next: Next) {
-  // Skip auth for login/register pages and static files
   const path = c.req.path;
   const publicPaths = [
-    "/login",
-    "/register",
     "/auth",
-    "/public",
-    "/css",
-    "/js",
+    "/health",
   ];
 
-  if (publicPaths.some((p) => path.startsWith(p)) || path === "/") {
+  if (publicPaths.some((p) => path.startsWith(p))) {
     return await next();
   }
 
   // Check for session token
   const token =
     c.req.header("Authorization")?.replace("Bearer ", "") ||
-    c.req.cookie("session_token");
+    getCookie(c, "session_token");
 
   if (!token) {
     return c.json({ success: false, message: "Authentication required" }, 401);
@@ -53,3 +49,4 @@ export function requireAuth(c: Context): User {
   }
   return c.user;
 }
+

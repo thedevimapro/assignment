@@ -1,4 +1,4 @@
-// src/types.ts - COMPLETE FIX WITH NOTIFICATION SUPPORT
+// src/types.ts - MIGRATED TO NODE.JS
 export interface Contact {
   Email: string;
   FirstName?: string;

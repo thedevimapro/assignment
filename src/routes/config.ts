@@ -1,8 +1,8 @@
-// src/routes/config.ts - UPDATED FOR USER MANAGEMENT
+// src/routes/config.ts - MIGRATED TO NODE.JS
 import { Hono } from "hono";
-import { userDatabase, UserSMTPConfig } from "../services/userDatabase";
-import { requireAuth } from "../middleware/auth";
-import type { SMTPDefaults } from "../types";
+import { userDatabase, UserSMTPConfig } from "../services/userDatabase.js";
+import { requireAuth } from "../middleware/auth.js";
+import type { SMTPDefaults } from "../types.js";
 
 // Global environment config (fallback for admin or demo mode)
 const envConfig: SMTPDefaults = {
@@ -27,11 +27,9 @@ const app = new Hono();
 app.get("/config/smtp", (c) => {
   const user = requireAuth(c);
 
-  // Get all user configurations
   const userConfigs = userDatabase.getUserSMTPConfigs(user.id);
   const defaultConfig = userDatabase.getUserDefaultSMTPConfig(user.id);
 
-  // Convert UserSMTPConfig to SMTPDefaults format for compatibility
   const activeConfig = defaultConfig
     ? {
         host: defaultConfig.host,
@@ -88,7 +86,6 @@ app.post("/config/smtp", async (c) => {
       is_default: !!body.isDefault,
     };
 
-    // Validate required fields
     if (
       !configData.host ||
       !configData.user ||
@@ -136,7 +133,7 @@ app.put("/config/smtp/:configId", async (c) => {
     const configId = c.req.param("configId");
     const body = await c.req.json();
 
-    const updates = {
+    const updates: Record<string, any> = {
       name: body.name,
       host: body.host,
       port: body.port,
@@ -150,8 +147,8 @@ app.put("/config/smtp/:configId", async (c) => {
 
     // Remove undefined values
     Object.keys(updates).forEach((key) => {
-      if (updates[key as keyof typeof updates] === undefined) {
-        delete updates[key as keyof typeof updates];
+      if (updates[key] === undefined) {
+        delete updates[key];
       }
     });
 
@@ -257,7 +254,7 @@ app.post("/config/smtp/:configId/default", async (c) => {
   }
 });
 
-// GET active config for sending emails (backward compatibility)
+// GET active config for sending emails
 app.get("/config/smtp/active", (c) => {
   const user = requireAuth(c);
 
@@ -285,14 +282,13 @@ app.get("/config/smtp/active", (c) => {
   });
 });
 
-// GET - Test SMTP connection
+// POST - Test SMTP connection
 app.post("/config/smtp/test", async (c) => {
   try {
     const user = requireAuth(c);
     const body = await c.req.json();
 
-    // Import email service for testing
-    const { emailService } = await import("../services/emailService");
+    const { emailService } = await import("../services/emailService.js");
 
     const testConfig = {
       host: body.host,
@@ -325,3 +321,4 @@ app.post("/config/smtp/test", async (c) => {
 });
 
 export default app;
+

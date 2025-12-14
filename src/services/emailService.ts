@@ -182,11 +182,14 @@ export class EmailService {
     }
 
     console.log("Bulk email send completed");
-    // NEW: Send completion notification if requested
     if (notificationSettings?.email && notificationSettings?.userId) {
       await this.sendBulkCompletionNotification(
         job,
-        notificationSettings,
+        {
+          email: notificationSettings.email,
+          userId: notificationSettings.userId,
+          configName: notificationSettings.configName
+        },
         startTime,
         sentCount,
         failedCount

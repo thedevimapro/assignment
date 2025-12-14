@@ -62,16 +62,23 @@ jobs:
   size-check:
     name: Check PR Size
     runs-on: ubuntu-latest
-    
+    permissions:
+      pull-requests: write
+      issues: write
+
     steps:
       - name: Check PR size
         uses: actions/github-script@v7
         with:
           script: |
             const pr = context.payload.pull_request;
-            const changedFiles = pr.changed_files;
-            const additions = pr.additions;
-            const deletions = pr.deletions;
+            if (!pr) {
+              console.log('No pull request context found');
+              return;
+            }
+            const changedFiles = pr.changed_files || 0;
+            const additions = pr.additions || 0;
+            const deletions = pr.deletions || 0;
             
             let message = `📊 **PR Size Analysis**\n\n`;
             message += `- Files changed: ${changedFiles}\n`;
@@ -85,22 +92,30 @@ jobs:
               message += `✅ PR size looks good!`;
             }
             
-            github.rest.issues.createComment({
-              ...context.repo,
-              issue_number: pr.number,
-              body: message
-            });
+            try {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: pr.number,
+                body: message
+              });
+            } catch (error) {
+              console.log('Could not create comment:', error.message);
+            }
+        continue-on-error: true
 
   label-pr:
     name: Auto Label PR
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
       
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Label based on files changed
         uses: actions/labeler@v5
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          configuration-path: .github/labeler.yml
         continue-on-error: true

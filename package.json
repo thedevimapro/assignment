@@ -1,12 +1,13 @@
 {
-  "name": "bulk-email-sender",
+  "name": "bulk-email-sender-backend",
   "version": "2.0.0",
   "description": "Web-based bulk email sender with user management and WYSIWYG editor",
+  "type": "module",
   "main": "src/app.ts",
   "scripts": {
-    "dev": "bun run --watch src/app.ts",
-    "build": "bun build src/app.ts --outdir=dist",
-    "start": "bun run src/app.ts",
+    "dev": "tsx watch src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
     "clean": "rm -rf dist uploads/* logs/* data/users.db",
     "reset-db": "rm -f data/users.db data/scheduler.db",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -16,7 +17,7 @@
     "bulk-email",
     "smtp",
     "nodemailer",
-    "bun",
+    "hono",
     "typescript",
     "authentication",
     "user-management"
@@ -24,21 +25,24 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "hono": "^3.12.0",
-    "nodemailer": "^6.9.8",
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14",
+    "nodemailer": "^6.9.16",
     "xlsx": "^0.18.5",
-    "multer": "^1.4.5-lts.1",
-    "csv-stringify": "^6.4.4",
-    "dotenv": "^16.3.1",
-    "argon2": "^0.31.2"
+    "csv-stringify": "^6.5.2",
+    "dotenv": "^16.4.7",
+    "argon2": "^0.41.1",
+    "better-sqlite3": "^11.6.0"
   },
   "devDependencies": {
-    "@types/nodemailer": "^6.4.14",
-    "@types/multer": "^1.4.11",
-    "typescript": "^5.3.3"
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/nodemailer": "^6.4.17",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "bun": ">=1.0.0"
+    "node": ">=18.0.0"
   }
 }
+
