@@ -7,30 +7,23 @@
 	let error = $state("");
 
 	async function handleLogin() {
-		console.log("Login button clicked");
-
 		loading = true;
 		error = "";
 
 		try {
-			// Make the request directly to the backend so the cookie is set for port 3000
-			const response = await fetch("http://localhost:3000/auth/login", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				credentials: "include",
-				body: JSON.stringify({ email, password }),
-			});
+			const response = await login(email, password);
 
-			const result = await response.json();
-
-			if (result.success) {
-				window.location.href = "http://localhost:3000/";
+			if (response.data?.success) {
+				window.location.href = "/dashboard";
 			} else {
-				error = result.message || "Login failed";
+				error = response.data?.message || "Login failed";
 			}
 		} catch (err: any) {
-			console.log("ERROR:", err);
-			error = err.message;
+			if (err.response?.data?.message) {
+				error = err.response.data.message;
+			} else {
+				error = err.message;
+			}
 		} finally {
 			loading = false;
 		}
